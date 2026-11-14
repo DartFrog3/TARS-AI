@@ -15,6 +15,7 @@ import threading
 import time
 import wave
 import json
+import re
 import sys
 from io import BytesIO
 from typing import Callable, Optional
@@ -706,26 +707,30 @@ class STTManager:
                 if not self.running or self.shutdown_event.is_set():
                     break
 
-                # Read a short audio chunk
+                # Read a short audio chunk. Keep this data unmodified here so
+                # the VAD owns microphone amplification and applies it exactly
+                # once.
                 data, _ = stream.read(frames_per_chunk)
-                data = self.amplify_audio(data)  # Apply amplification
 
-                # Check for silence
-                is_silence, _, silent_frames = self.voice_activity_detection_main(data, False, silent_frames)
-                if is_silence:
-                    silent_frames += 1
-                    if silent_frames > self.MAX_SILENT_FRAMES:
-                        queue_message("DEBUG: Silence timeout reached in FastRTC wake word detection.")
-                        break
+                # Only send chunks containing speech to FastRTC. The previous
+                # implementation checked the silence-timeout flag instead of
+                # the speech-detected flag, so silent chunks were transcribed
+                # while valid speech could be rejected by an excessive gate.
+                is_silence, detected_speech, silent_frames = self.voice_activity_detection_main(
+                    data, False, silent_frames
+                )
+                if not detected_speech:
+                    if is_silence:
+                        silent_frames = 0
                     continue
-                else:
-                    silent_frames = 0
 
-                # Convert to format expected by FastRTC (float32)
+                silent_frames = 0
+
+                # Amplify exactly once, after VAD, then convert to the format
+                # expected by FastRTC (float32 in the range [-1.0, 1.0]).
+                data = self.amplify_audio(data)
                 audio_data = data.astype(np.float32) / 32768.0
-                # Ensure 1D array: flatten from (44100,) to [44100]
                 audio_data = audio_data.flatten()
-                #queue_message(f"DEBUG: audio_data shape: {audio_data.shape}, sample_rate: {self.SAMPLE_RATE}")
 
                 try:
                     transcript = self.fastrtc_model.stt((self.SAMPLE_RATE, audio_data)).strip().lower()
@@ -733,10 +738,19 @@ class STTManager:
                     queue_message(f"ERROR: FastRTC STT failed: {e}")
                     continue
 
-                if self.DEBUG:
-                    queue_message(f"DEBUG: FastRTC Wake Word Transcript: '{transcript}'")
+                # Treat punctuation and repeated whitespace as insignificant so
+                # a transcript such as "hey, tars" matches "hey tars".
+                normalized_transcript = " ".join(
+                    re.sub(r"[^a-z0-9\s]", "", transcript).split()
+                )
+                normalized_wake_word = " ".join(
+                    re.sub(r"[^a-z0-9\s]", "", self.WAKE_WORD).split()
+                )
 
-                if self.WAKE_WORD in transcript:
+                if normalized_transcript:
+                    queue_message(f"DEBUG: FastRTC Wake Word Transcript: '{normalized_transcript}'")
+
+                if normalized_wake_word in normalized_transcript:
                     if self.config["STT"].get("use_indicators"):
                         self.play_beep(1200, 0.1, 44100, 0.8)
                     try:
@@ -1015,7 +1029,10 @@ class STTManager:
             upper_bound = q3 + 1.5 * iqr
             filtered = background_rms[(background_rms >= lower_bound) & (background_rms <= upper_bound)]
             self.wake_silence_threshold = np.max(filtered)
-            self.silence_threshold = self.wake_silence_threshold * self.silence_margin
+            # Store the raw background-noise floor. The VAD applies
+            # silence_margin when comparing live audio, so applying it here as
+            # well made the effective threshold margin squared.
+            self.silence_threshold = max(self.wake_silence_threshold, 10)
 
             db = 20 * np.log10(self.silence_threshold)
             queue_message(f"INFO: Silence threshold: {db:.2f} dB and {self.silence_threshold}")
