@@ -130,6 +130,24 @@ def get_image_caption_from_base64(base64_str):
     except Exception as e:
         raise RuntimeError(f"Error generating caption from base64: {e}")
 
+def capture_image_as_base64() -> str:
+    """
+    Capture an image from the camera and return it as a base64-encoded string.
+    Useful for API calls that require base64-encoded images.
+
+    Returns:
+    - str: Base64-encoded image string (data URI format ready)
+    """
+    try:
+        image_path = capture_image()
+        with open(image_path, "rb") as img_file:
+            img_bytes = img_file.read()
+            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+            return img_base64
+    except Exception as e:
+        queue_message(f"ERROR: Failed to capture image as base64: {e}")
+        raise RuntimeError(f"Error capturing image as base64: {e}")
+
 def save_captured_image(image_path: str) -> str:
     """
     Save the captured image to the 'vision/images' directory.

@@ -46,6 +46,7 @@ from modules.module_homeassistant import send_prompt_to_homeassistant
 from modules.module_tts import generate_tts_audio
 from modules.module_config import load_config, update_character_setting
 from modules.module_messageQue import queue_message
+from modules.module_navigation import navigate_to_object
 
 # === Constants ===
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Move up to "src"
@@ -308,8 +309,22 @@ def predict_class_nb(user_input):
 def predict_class_llm(user_input):
     from module_llm import raw_complete_llm
 
+    # Create tool descriptions for the LLM
+    tool_descriptions = {
+        "Weather": "Get current weather information for a location",
+        "News": "Search for and retrieve news articles",
+        "Move": "Execute basic robot movements (turn, step forward, pose)",
+        "Vision": "Capture and describe what the camera sees",
+        "Search": "Search the web for information",
+        "SDmodule-Generate": "Generate images using Stable Diffusion",
+        "Volume": "Adjust system volume",
+        "Persona": "Adjust personality traits (humor, empathy, etc.)",
+        "Home_Assistant": "Control Home Assistant devices",
+        "Navigate": "Navigate to a specific object or location using vision (e.g., 'walk to the fridge', 'go to the door')"
+    }
+    
     prompt = f"""
-    You are an AI module tasked with predicting the appropriate tool usage based on the user's message, with a high level of accuracy and understanding of the intent behind their words. The available tools and their descriptions are as follows: {FUNCTION_REGISTRY}.
+    You are an AI module tasked with predicting the appropriate tool usage based on the user's message, with a high level of accuracy and understanding of the intent behind their words. The available tools and their descriptions are as follows: {tool_descriptions}.
 
     Your tasks are:
 
@@ -537,6 +552,61 @@ def adjust_persona(user_input):
     except Exception as e:
         return f"Error processing the movement command: {e}"
 
+def navigation_llmcall(user_input):
+    """
+    Extract target object from user input and navigate to it.
+    
+    Parameters:
+    - user_input (str): Natural language command (e.g., "walk to the fridge", "navigate to the door").
+    
+    Returns:
+    - str: Status message from navigation.
+    """
+    from module_llm import raw_complete_llm
+    
+    prompt = f"""
+    You are TARS, an AI module responsible for extracting navigation targets from user commands.
+    
+    Extract the target object or location from the following input: "{user_input}"
+    
+    Respond with a JSON object in this exact format:
+    {{
+        "target": "<TARGET_NAME>"
+    }}
+    
+    Rules:
+    - Extract only the target object/location name (e.g., "fridge", "door", "table", "kitchen").
+    - Remove articles (a, an, the) and prepositions (to, toward).
+    - Use lowercase, single word or short phrase.
+    - If no target is found, return: {{"target": null}}
+    
+    Examples:
+    Input: "Walk to the fridge"
+    Output: {{"target": "fridge"}}
+    
+    Input: "Navigate to the door"
+    Output: {{"target": "door"}}
+    
+    Input: "Go to the kitchen table"
+    Output: {{"target": "kitchen table"}}
+    
+    Input: "{user_input}"
+    Output:
+    """
+    
+    try:
+        data = raw_complete_llm(prompt)
+        data = re.sub(r'```json\n|\n```', '', data).strip()
+        extracted_data = json.loads(data)
+        target = extracted_data.get("target")
+        
+        if not target:
+            return "Could not identify a target to navigate to."
+        
+        return navigate_to_object(target)
+    except Exception as e:
+        return f"Error processing navigation command: {e}"
+
  
 # === Function Calling ===
 FUNCTION_REGISTRY = {
@@ -548,5 +618,6 @@ FUNCTION_REGISTRY = {
     "SDmodule-Generate": generate_image,
     "Volume": handle_volume_command,
     "Persona": adjust_persona,
-    "Home_Assistant": send_prompt_to_homeassistant
+    "Home_Assistant": send_prompt_to_homeassistant,
+    "Navigate": navigation_llmcall
 }

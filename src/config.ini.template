@@ -274,3 +274,18 @@ battery_cutoff_voltage = 10.5
 # Minimum safe voltage before discharge should stop (in volts). Set this based on the battery's safe discharge voltage (e.g., 10.5V for a 12V battery).
 auto_shutdown = False
 # not implemented yet
+
+[NAVIGATION]
+# Vision-based navigation configuration
+enabled = False
+# Enable or disable vision-based navigation
+use_vision_api = True
+# Use OpenAI vision API (True) or BLIP fallback (False) for image analysis
+max_iterations = 20
+# Maximum number of navigation iterations before timeout
+max_steps_per_iteration = 5
+# Maximum movement steps per iteration to prevent excessive movement
+stuck_threshold = 3
+# Number of iterations with no progress before trying alternative path
+stopping_criteria = llm_based
+# Criteria for determining when target is reached: llm_based (uses LLM assessment) or distance_based (requires additional sensors)

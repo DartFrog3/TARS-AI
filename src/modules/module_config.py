@@ -304,6 +304,14 @@ def load_config():
             "battery_initial_voltage":  float(config['BATTERY']['battery_initial_voltage']),
             "battery_cutoff_voltage":  float(config['BATTERY']['battery_cutoff_voltage']),
             "auto_shutdown": config.getboolean('BATTERY', 'auto_shutdown')     
+        },
+        "NAVIGATION": {
+            "enabled": config.getboolean('NAVIGATION', 'enabled', fallback=False),
+            "use_vision_api": config.getboolean('NAVIGATION', 'use_vision_api', fallback=True),
+            "max_iterations": config.getint('NAVIGATION', 'max_iterations', fallback=20),
+            "max_steps_per_iteration": config.getint('NAVIGATION', 'max_steps_per_iteration', fallback=5),
+            "stuck_threshold": config.getint('NAVIGATION', 'stuck_threshold', fallback=3),
+            "stopping_criteria": config.get('NAVIGATION', 'stopping_criteria', fallback='llm_based')
         }
     }
 

@@ -65,37 +65,96 @@ def get_completion(user_prompt, istext=True):
         queue_message(f"ERROR: LLM request failed: {e}")
         return None
 
-def _prepare_request_data(llm_backend, prompt):
+def _model_supports_vision(model_name: str) -> bool:
+    """
+    Check if the model supports vision capabilities.
+    
+    Parameters:
+    - model_name (str): The model name to check.
+    
+    Returns:
+    - bool: True if model supports vision, False otherwise.
+    """
+    vision_models = [
+        "gpt-4o", "gpt-4o-mini", "gpt-4-vision-preview", 
+        "gpt-4-turbo", "gpt-4-turbo-preview"
+    ]
+    return any(vision_model in model_name.lower() for vision_model in vision_models)
+
+def _prepare_request_data(llm_backend, prompt, image_base64=None):
     """
     Prepare the request URL and data for the LLM backend.
 
     Parameters:
     - llm_backend (str): The LLM backend name.
     - prompt (str): The formatted prompt.
+    - image_base64 (str, optional): Base64-encoded image for vision models.
 
     Returns:
     - tuple: URL and data payload for the request.
     """
     if llm_backend == "openai":
         url = f"{CONFIG['LLM']['base_url']}/v1/chat/completions"
-        data = {
-            "model": CONFIG['LLM']['openai_model'],
-            "messages": [
+        
+        # Check if vision is supported and image is provided
+        if image_base64 and _model_supports_vision(CONFIG['LLM']['openai_model']):
+            messages = [
+                {"role": "system", "content": CONFIG['LLM']['systemprompt']},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            }
+                        }
+                    ]
+                }
+            ]
+        else:
+            messages = [
                 {"role": "system", "content": CONFIG['LLM']['systemprompt']},
                 {"role": "user", "content": prompt}
-            ],
+            ]
+        
+        data = {
+            "model": CONFIG['LLM']['openai_model'],
+            "messages": messages,
             "max_tokens": CONFIG['LLM']['max_tokens'],
             "temperature": CONFIG['LLM']['temperature'],
             "top_p": CONFIG['LLM']['top_p']
         }
     elif llm_backend == "deepinfra":
         url = f"{CONFIG['LLM']['base_url']}/v1/openai/chat/completions"
-        data = {
-            "model": CONFIG['LLM']['openai_model'],
-            "messages": [
+        
+        # Check if vision is supported and image is provided
+        if image_base64 and _model_supports_vision(CONFIG['LLM']['openai_model']):
+            messages = [
+                {"role": "system", "content": CONFIG['LLM']['systemprompt']},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            }
+                        }
+                    ]
+                }
+            ]
+        else:
+            messages = [
                 {"role": "system", "content": CONFIG['LLM']['systemprompt']},
                 {"role": "user", "content": prompt}
-            ],
+            ]
+        
+        data = {
+            "model": CONFIG['LLM']['openai_model'],
+            "messages": messages,
             "max_tokens": CONFIG['LLM']['max_tokens'],
             "temperature": CONFIG['LLM']['temperature'],
             "top_p": CONFIG['LLM']['top_p']
@@ -193,6 +252,47 @@ def llm_process(user_input, bot_response):
         emotion_thread.start()  # Start the thread
 
     return bot_response
+
+def get_vision_completion(prompt: str, image_base64: str) -> str:
+    """
+    Generate a completion using vision-capable LLM with an image.
+    
+    Parameters:
+    - prompt (str): The text prompt.
+    - image_base64 (str): Base64-encoded image string.
+    
+    Returns:
+    - str: The generated completion, or None on error.
+    """
+    llm_backend = CONFIG['LLM']['llm_backend']
+    
+    # Check if backend and model support vision
+    if llm_backend in ["openai", "deepinfra"] and _model_supports_vision(CONFIG['LLM']['openai_model']):
+        # Use vision API
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {CONFIG['LLM']['api_key']}"
+        }
+        url, data = _prepare_request_data(llm_backend, prompt, image_base64=image_base64)
+        
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            bot_reply = _extract_text(response.json(), istext=True)
+            return bot_reply
+        except requests.RequestException as e:
+            queue_message(f"ERROR: Vision LLM request failed: {e}")
+            return None
+    else:
+        # Fallback to BLIP caption + text LLM
+        from modules.module_vision import get_image_caption_from_base64
+        try:
+            caption = get_image_caption_from_base64(image_base64)
+            enhanced_prompt = f"{prompt}\n\nImage description: {caption}"
+            return raw_complete_llm(enhanced_prompt, istext=True)
+        except Exception as e:
+            queue_message(f"ERROR: Vision fallback failed: {e}")
+            return None
 
 def raw_complete_llm(user_prompt, istext=True):
     """
