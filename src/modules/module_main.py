@@ -101,7 +101,12 @@ def wake_word_callback(wake_response):
     ui_manager.wake()
     ui_manager.update_data(character_name, wake_response, character_name)
     
-    asyncio.run(play_audio_chunks(wake_response, CONFIG['TTS']['ttsoption'], True))
+    asyncio.run(play_audio_chunks(
+        wake_response,
+        CONFIG['TTS']['ttsoption'],
+        is_wakeword=True,
+        chatui_enabled=CONFIG['CHATUI']['enabled'] == 'True'
+    ))
 
 def utterance_callback(message):
     """
@@ -154,7 +159,11 @@ def utterance_callback(message):
         reply = re.sub(r'[^a-zA-Z0-9\s.,?!;:"\'-]', '', reply)
         
         # Stream TTS audio to speakers
-        asyncio.run(play_audio_chunks(reply, CONFIG['TTS']['ttsoption']))
+        asyncio.run(play_audio_chunks(
+            reply,
+            CONFIG['TTS']['ttsoption'],
+            chatui_enabled=CONFIG['CHATUI']['enabled'] == 'True'
+        ))
 
     except json.JSONDecodeError:
         queue_message("ERROR: Invalid JSON format. Could not process user message.")

@@ -148,15 +148,20 @@ async def generate_tts_audio(text, ttsoption, is_wakeword=False, azure_api_key=N
     except Exception as e:
         queue_message(f"ERROR: Text-to-speech generation failed: {e}")
 
-async def play_audio_chunks(text, config, is_wakeword=False):
+async def play_audio_chunks(text, ttsoption, is_wakeword=False, chatui_enabled=False):
     """
     Plays audio chunks sequentially from the generate_tts_audio function.
     Calls stop_talking when done.
     """  
 
-    async for audio_chunk in generate_tts_audio(text, config, is_wakeword):
+    async for audio_chunk in generate_tts_audio(text, ttsoption, is_wakeword):
+        if chatui_enabled:
+            try:
+                requests.get("http://127.0.0.1:5012/start_talking", timeout=1)
+            except requests.exceptions.RequestException as e:
+                queue_message(f"WARNING: Failed to notify ChatUI that TARS is talking: {e}")
+
         try:
-            requests.get("http://127.0.0.1:5012/start_talking", timeout=1)
             # Read the audio chunk into a format playable by sounddevice
             data, samplerate = sf.read(audio_chunk, dtype='float32')
             sd.play(data, samplerate)
@@ -165,8 +170,8 @@ async def play_audio_chunks(text, config, is_wakeword=False):
         except Exception as e:
             queue_message(f"ERROR: Failed to play audio chunk: {e}")
 
-    # ✅ Call stop_talking when all audio chunks are played
-    try:
-        requests.get("http://127.0.0.1:5012/stop_talking", timeout=1)
-    except requests.exceptions.RequestException as e:
-        queue_message(f"ERROR: Failed to send stop_talking request: {e}")
+    if chatui_enabled:
+        try:
+            requests.get("http://127.0.0.1:5012/stop_talking", timeout=1)
+        except requests.exceptions.RequestException as e:
+            queue_message(f"WARNING: Failed to notify ChatUI that TARS stopped talking: {e}")
