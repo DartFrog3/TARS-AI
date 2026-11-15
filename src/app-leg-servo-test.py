@@ -19,7 +19,9 @@ import time
 SCRIPT_DIR = Path(__file__).resolve().parent
 LIVE_CONFIG = SCRIPT_DIR / "config.ini"
 TEMPLATE_CONFIG = SCRIPT_DIR / "config.ini.template"
-MAX_JOG_COUNTS = 5
+MAX_JOG_COUNTS = 20
+JOG_HOLD_SECONDS = 1.5
+ANCHOR_HOLD_SECONDS = 0.5
 
 
 @dataclass(frozen=True)
@@ -177,9 +179,9 @@ def run_hardware_test(profile: ServoProfile, step: int) -> None:
         if answer == "q":
             return
         set_output(pca, profile.channel, profile.anchor + step)
-        time.sleep(0.5)
+        time.sleep(JOG_HOLD_SECONDS)
         set_output(pca, profile.channel, profile.anchor)
-        time.sleep(0.5)
+        time.sleep(ANCHOR_HOLD_SECONDS)
         print("Positive jog complete. Note which physical servo moved and its direction.")
 
         answer = input(
@@ -188,9 +190,9 @@ def run_hardware_test(profile: ServoProfile, step: int) -> None:
         if answer == "q":
             return
         set_output(pca, profile.channel, profile.anchor - step)
-        time.sleep(0.5)
+        time.sleep(JOG_HOLD_SECONDS)
         set_output(pca, profile.channel, profile.anchor)
-        time.sleep(0.5)
+        time.sleep(ANCHOR_HOLD_SECONDS)
         print("Negative jog complete. Note which physical servo moved and its direction.")
     finally:
         if pca is not None:
