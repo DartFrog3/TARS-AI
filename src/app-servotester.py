@@ -67,32 +67,21 @@ def set_servo_pulse(channel, target_pulse):
         print(f"Pulse out of range ({MIN_PULSE}-{MAX_PULSE}).")
 
 def set_all_servos_preset():
-    set_servo_pulse(0, 300)  
-    set_servo_pulse(1, 300)  
-    set_servo_pulse(2, 300)
-    
-    set_servo_pulse(3, 135)  # was 200 to 500
-    set_servo_pulse(4, 200)  
-    set_servo_pulse(5, 200)
-    
-    set_servo_pulse(6, 440)  
-    set_servo_pulse(7, 380)  
-    set_servo_pulse(8, 380)
-    
-    print("All servos set to preset pulse widths.")
+    print("Disabled for safety: the previous presets did not match this robot's channel mapping.")
+    print("Use app-leg-servo-test.py to test one channel at a time.")
 
 def set_single_servo():
     while True:
         try:
-            print("#0 -Main Legs - Raise legs up and down")
-            print("#1 -Left Leg Rotation")
-            print("#2 -Right Leg Rotation")
-            print("#3 -Right Leg Main Arm")
-            print("#4 -Right Leg Forearm")
-            print("#5 -Right Leg Hand")
-            print("#6 -Left Leg Main Arm")
-            print("#7 -Left Leg Forearm")
-            print("#8 -Left Leg Hand")
+            print("#0 -Center Lift/Drive")
+            print("#1 -Left Main Arm Candidate")
+            print("#2 -Left Leg Rotation")
+            print("#3 -Right Leg Rotation")
+            print("#4 -Left Hand/Finger")
+            print("#5 -Left Forearm/Second Joint")
+            print("#6 -Right Main Arm Candidate")
+            print("#7 -Right Forearm (currently nonresponsive)")
+            print("#8 -Right Hand/Finger")
             channel = int(input(f"Enter servo number: "))
             pulse = int(input(f"Enter pulse width for servo {channel} ({MIN_PULSE}-{MAX_PULSE}): "))
             set_servo_pulse(channel, pulse)
@@ -157,7 +146,7 @@ def motion():
     print("V2 Servo Controller")
     while True:
         print("\nSelect an option:")
-        print("1. Set all servos to preset position")
+        print("1. Set all servos to preset position (disabled for safety)")
         print("2. Manually set servo and position")
         print("3. Manually set Channel 15 Servo position")
         print("4. Disable all servos")

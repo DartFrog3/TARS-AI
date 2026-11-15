@@ -84,6 +84,21 @@ backStarboard = int(config["SERVO"]["backStarboard"]) + perfectStaroffset
 
 MOVING = False
 
+# Physical PCA9685 mapping from individual tests. Leg channels and arm sides
+# were observed directly; the right main/forearm joint assignment still needs
+# confirmation because channel 7 did not respond during testing.
+CENTER_LIFT_CHANNEL = 0
+LEFT_LEG_CHANNEL = 2
+RIGHT_LEG_CHANNEL = 3
+
+LEFT_MAIN_ARM_CHANNEL = 1  # Left-side motion observed; joint inferred.
+LEFT_FOREARM_CHANNEL = 5
+LEFT_HAND_CHANNEL = 4
+
+RIGHT_MAIN_ARM_CHANNEL = 6  # Right-side motion observed; joint inferred.
+RIGHT_FOREARM_CHANNEL = 7  # Mapped by elimination; currently nonresponsive.
+RIGHT_HAND_CHANNEL = 8
+
 
 def pwm_to_duty_cycle(pwm_value):
     return int((pwm_value / 4095.0) * 65535)
@@ -434,9 +449,9 @@ def move_legs(height_percent=None, starboard_percent=None, port_percent=None, sp
         return int(round(value))
 
     movements = [
-        (height_percent, upHeight, downHeight, 0),
-        (starboard_percent, forwardStarboard, backStarboard, 1),
-        (port_percent, forwardPort, backPort, 2),
+        (height_percent, upHeight, downHeight, CENTER_LIFT_CHANNEL),
+        (starboard_percent, forwardStarboard, backStarboard, LEFT_LEG_CHANNEL),
+        (port_percent, forwardPort, backPort, RIGHT_LEG_CHANNEL),
     ]
 
     threads = []
@@ -467,12 +482,12 @@ def move_arm(port_main=None, port_forearm=None, port_hand=None,
         return int(round(value))
 
     movements = [
-        (port_main, portMainMin, portMainMax, 3),
-        (port_forearm, portForarmMin, portForarmMax, 4),
-        (port_hand, portHandMin, portHandMax, 5),
-        (star_main, starMainMin, starMainMax, 6),
-        (star_forearm, starForarmMin, starForarmMax, 7),
-        (star_hand, starHandMin, starHandMax, 8),
+        (port_main, portMainMin, portMainMax, RIGHT_MAIN_ARM_CHANNEL),
+        (port_forearm, portForarmMin, portForarmMax, RIGHT_FOREARM_CHANNEL),
+        (port_hand, portHandMin, portHandMax, RIGHT_HAND_CHANNEL),
+        (star_main, starMainMin, starMainMax, LEFT_MAIN_ARM_CHANNEL),
+        (star_forearm, starForarmMin, starForarmMax, LEFT_FOREARM_CHANNEL),
+        (star_hand, starHandMin, starHandMax, LEFT_HAND_CHANNEL),
     ]
 
     threads = []

@@ -35,19 +35,19 @@ class ServoProfile:
 
 LEG_CHANNELS = {
     0: ("central leg lift/drive (physically observed)", "neutralHeight", "upHeight", "downHeight"),
-    1: ("port/right leg rotation (verification candidate)", "neutralPort", "forwardPort", "backPort"),
     2: ("starboard/left leg rotation (physically observed)", "neutralStarboard", "forwardStarboard", "backStarboard"),
+    3: ("port/right leg rotation (physically observed)", "neutralPort", "forwardPort", "backPort"),
 }
 
-CANDIDATE_CHANNELS = {
-    3: ("unmapped candidate; production expects port/right main arm", "portMainMin", "portMainMax"),
-    4: ("unmapped candidate; production expects port/right forearm", "portForarmMin", "portForarmMax"),
-    5: ("unmapped candidate; production expects port/right hand/finger", "portHandMin", "portHandMax"),
-    6: ("unmapped candidate; production expects starboard/left main arm", "starMainMin", "starMainMax"),
-    7: ("unmapped candidate; production expects starboard/left forearm", "starForarmMin", "starForarmMax"),
-    8: ("unmapped candidate; production expects starboard/left hand/finger", "starHandMin", "starHandMax"),
+ARM_CHANNELS = {
+    1: ("starboard/left main arm candidate (left-side motion observed)", "starMainMin", "starMainMax"),
+    4: ("starboard/left hand/finger (physically observed)", "starHandMin", "starHandMax"),
+    5: ("starboard/left forearm/second joint (physically observed)", "starForarmMin", "starForarmMax"),
+    6: ("port/right main arm candidate (right-side motion observed)", "portMainMin", "portMainMax"),
+    7: ("port/right forearm candidate (currently nonresponsive)", "portForarmMin", "portForarmMax"),
+    8: ("port/right hand/finger (physically observed)", "portHandMin", "portHandMax"),
 }
-TESTABLE_CHANNELS = sorted((*LEG_CHANNELS, *CANDIDATE_CHANNELS))
+TESTABLE_CHANNELS = sorted((*LEG_CHANNELS, *ARM_CHANNELS))
 
 
 def parse_args() -> argparse.Namespace:
@@ -106,7 +106,7 @@ def load_profile(config_path: Path, channel: int) -> ServoProfile:
         minimum = min(first_limit, second_limit)
         maximum = max(first_limit, second_limit)
     else:
-        expected_function, first_limit_key, second_limit_key = CANDIDATE_CHANNELS[channel]
+        expected_function, first_limit_key, second_limit_key = ARM_CHANNELS[channel]
         expected_first = parser.getint("SERVO", first_limit_key)
         expected_second = parser.getint("SERVO", second_limit_key)
         expected_minimum = min(expected_first, expected_second)
