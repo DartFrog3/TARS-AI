@@ -33,13 +33,12 @@ class ServoProfile:
     maximum: int
 
 
-OBSERVED_LEG_CHANNELS = {
-    0: ("port/right leg rotation (physically observed)", "neutralPort", "forwardPort", "backPort"),
-    2: ("central leg lift (physically observed)", "neutralHeight", "upHeight", "downHeight"),
+LEG_CHANNELS = {
+    0: ("central leg lift/drive (physically observed)", "neutralHeight", "upHeight", "downHeight"),
+    1: ("port/right leg rotation (verification candidate)", "neutralPort", "forwardPort", "backPort"),
+    2: ("starboard/left leg rotation (physically observed)", "neutralStarboard", "forwardStarboard", "backStarboard"),
 }
 
-# Channel 1 is deliberately excluded: physical testing showed that it drives a
-# small hand/finger mechanism rather than a leg.
 CANDIDATE_CHANNELS = {
     3: ("unmapped candidate; production expects port/right main arm", "portMainMin", "portMainMax"),
     4: ("unmapped candidate; production expects port/right forearm", "portForarmMin", "portForarmMax"),
@@ -48,7 +47,7 @@ CANDIDATE_CHANNELS = {
     7: ("unmapped candidate; production expects starboard/left forearm", "starForarmMin", "starForarmMax"),
     8: ("unmapped candidate; production expects starboard/left hand/finger", "starHandMin", "starHandMax"),
 }
-TESTABLE_CHANNELS = sorted((*OBSERVED_LEG_CHANNELS, *CANDIDATE_CHANNELS))
+TESTABLE_CHANNELS = sorted((*LEG_CHANNELS, *CANDIDATE_CHANNELS))
 
 
 def parse_args() -> argparse.Namespace:
@@ -99,8 +98,8 @@ def load_profile(config_path: Path, channel: int) -> ServoProfile:
     if parser.get("SERVO", "MOVEMENT_VERSION", fallback="").strip().upper() != "V2":
         raise RuntimeError("This tester only supports MOVEMENT_VERSION = V2.")
 
-    if channel in OBSERVED_LEG_CHANNELS:
-        expected_function, anchor_key, first_limit_key, second_limit_key = OBSERVED_LEG_CHANNELS[channel]
+    if channel in LEG_CHANNELS:
+        expected_function, anchor_key, first_limit_key, second_limit_key = LEG_CHANNELS[channel]
         anchor = parser.getint("SERVO", anchor_key)
         first_limit = parser.getint("SERVO", first_limit_key)
         second_limit = parser.getint("SERVO", second_limit_key)
