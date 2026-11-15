@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Conservative, one-channel-at-a-time test for the three V2 leg outputs.
+"""Conservative, one-channel-at-a-time test for mapping the V2 leg outputs.
 
 This tool intentionally does not import the normal servo controller because that
 module initializes hardware at import time and exposes multi-servo movements.
@@ -33,18 +33,29 @@ class ServoProfile:
     maximum: int
 
 
-CHANNEL_CONFIG = {
-    0: ("central leg lift (raise/lower), unverified", "neutralHeight", "upHeight", "downHeight"),
-    1: ("starboard/left leg rotation, unverified", "neutralStarboard", "forwardStarboard", "backStarboard"),
-    2: ("port/right leg rotation, unverified", "neutralPort", "forwardPort", "backPort"),
+OBSERVED_LEG_CHANNELS = {
+    0: ("port/right leg rotation (physically observed)", "neutralPort", "forwardPort", "backPort"),
+    2: ("central leg lift (physically observed)", "neutralHeight", "upHeight", "downHeight"),
 }
+
+# Channel 1 is deliberately excluded: physical testing showed that it drives a
+# small hand/finger mechanism rather than a leg.
+CANDIDATE_CHANNELS = {
+    3: ("unmapped candidate; production expects port/right main arm", "portMainMin", "portMainMax"),
+    4: ("unmapped candidate; production expects port/right forearm", "portForarmMin", "portForarmMax"),
+    5: ("unmapped candidate; production expects port/right hand/finger", "portHandMin", "portHandMax"),
+    6: ("unmapped candidate; production expects starboard/left main arm", "starMainMin", "starMainMax"),
+    7: ("unmapped candidate; production expects starboard/left forearm", "starForarmMin", "starForarmMax"),
+    8: ("unmapped candidate; production expects starboard/left hand/finger", "starHandMin", "starHandMax"),
+}
+TESTABLE_CHANNELS = sorted((*OBSERVED_LEG_CHANNELS, *CANDIDATE_CHANNELS))
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Safely jog one V2 leg servo output by a few PWM counts."
     )
-    parser.add_argument("--channel", type=int, choices=sorted(CHANNEL_CONFIG), required=True)
+    parser.add_argument("--channel", type=int, choices=TESTABLE_CHANNELS, required=True)
     parser.add_argument(
         "--step",
         type=int,
@@ -88,17 +99,42 @@ def load_profile(config_path: Path, channel: int) -> ServoProfile:
     if parser.get("SERVO", "MOVEMENT_VERSION", fallback="").strip().upper() != "V2":
         raise RuntimeError("This tester only supports MOVEMENT_VERSION = V2.")
 
-    expected_function, anchor_key, first_limit_key, second_limit_key = CHANNEL_CONFIG[channel]
-    anchor = parser.getint("SERVO", anchor_key)
-    first_limit = parser.getint("SERVO", first_limit_key)
-    second_limit = parser.getint("SERVO", second_limit_key)
+    if channel in OBSERVED_LEG_CHANNELS:
+        expected_function, anchor_key, first_limit_key, second_limit_key = OBSERVED_LEG_CHANNELS[channel]
+        anchor = parser.getint("SERVO", anchor_key)
+        first_limit = parser.getint("SERVO", first_limit_key)
+        second_limit = parser.getint("SERVO", second_limit_key)
+        minimum = min(first_limit, second_limit)
+        maximum = max(first_limit, second_limit)
+    else:
+        expected_function, first_limit_key, second_limit_key = CANDIDATE_CHANNELS[channel]
+        expected_first = parser.getint("SERVO", first_limit_key)
+        expected_second = parser.getint("SERVO", second_limit_key)
+        expected_minimum = min(expected_first, expected_second)
+        expected_maximum = max(expected_first, expected_second)
+
+        leg_ranges = (
+            (parser.getint("SERVO", "upHeight"), parser.getint("SERVO", "downHeight")),
+            (parser.getint("SERVO", "forwardStarboard"), parser.getint("SERVO", "backStarboard")),
+            (parser.getint("SERVO", "forwardPort"), parser.getint("SERVO", "backPort")),
+        )
+        common_leg_minimum = max(min(first, second) for first, second in leg_ranges)
+        common_leg_maximum = min(max(first, second) for first, second in leg_ranges)
+
+        # A discovery command must remain valid for both the output's expected
+        # servo and any of the three possible leg functions.
+        minimum = max(expected_minimum, common_leg_minimum)
+        maximum = min(expected_maximum, common_leg_maximum)
+        if minimum >= maximum:
+            raise RuntimeError(f"Channel {channel} has no shared safe discovery range.")
+        anchor = (minimum + maximum) // 2
 
     return ServoProfile(
         channel=channel,
         expected_function=expected_function,
         anchor=anchor,
-        minimum=min(first_limit, second_limit),
-        maximum=max(first_limit, second_limit),
+        minimum=minimum,
+        maximum=maximum,
     )
 
 
